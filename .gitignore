@@ -1,0 +1,4 @@
+.env
+env/
+extras/training_data/
+*.nc
