@@ -11,10 +11,10 @@ import wavespectra
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
 
-path_hindcast = r'D:\CISPac-5\SWAN_XBeach_Test\extras\data\subset'
+path_hindcast = r'D:\CISPac-5\CIS-PAC5-Niue-Inundation-ML\extras\spec_hindcast\subset'
 start_year = 1979
 end_year = 2023
-out_fl_path = os.path.join(r'D:\CISPac-5\SWAN_XBeach_Test\extras\data\Spectra', 'Niue_Superpoint.nc')
+out_fl_path = os.path.join(r'D:\CISPac-5\CIS-PAC5-Niue-Inundation-ML\extras\spec_hindcast', 'Niue_Superpoint.nc')
 
 
 fl_path_list = []
@@ -70,7 +70,7 @@ ds_superpoint_subset.spec.plot(
     levels=np.logspace(np.log10(0.005), np.log(efth_max), 128,endpoint=True),
     cbar_ticks=[0.005,0.01, 0.1, efth_max],
 )
-fig.savefig('D:\CISPac-5\SWAN_XBeach_Test\extras\data\Spectra\Heta_Superpoint_spec.png')
+fig.savefig('D:\CISPac-5\CIS-PAC5-Niue-Inundation-ML\extras\spec_hindcast\Spectra_Example\Heta_Superpoint_spec.png')
 plt.close(fig)
 
 for i in range(8):
@@ -84,7 +84,7 @@ for i in range(8):
         levels=np.logspace(np.log10(0.005), np.log(efth_max), 128,endpoint=True),
         cbar_ticks=[0.005,0.01, 0.1, efth_max],
     )
-    fig.savefig(r'D:\CISPac-5\SWAN_XBeach_Test\extras\data\Spectra\HetaPoint' + str(i) + '_spec.png')
+    fig.savefig(r'D:\CISPac-5\CIS-PAC5-Niue-Inundation-ML\extras\spec_hindcast\Spectra_Example\HetaPoint' + str(i) + '_spec.png')
     plt.close(fig)
 
     

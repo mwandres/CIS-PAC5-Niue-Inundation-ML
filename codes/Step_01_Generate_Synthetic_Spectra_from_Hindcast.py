@@ -116,14 +116,13 @@ num_sims=100000
 
 # 1. Generate synthetic data (3D Matrix: Frequencies x Directions x Time)
 # Here we simulate 100 frequencies, 100 directions, and 50 time points
-path=r'D:\CISPac-5\CIS-PAC5-Niue-Inundation-ML\extras'
+path_data=r'D:\CISPac-5\CIS-PAC5-Niue-Inundation-ML\extras\spec_hindcast'
 path_res = r'D:\CISPac-5\CIS-PAC5-Niue-Inundation-ML\extras\processed_data'
-path_data=os.path.join(path, 'training_data')
 sp_regular=xr.open_dataset(os.path.join(path_data, 'Niue_SuperPoint.nc'))
 sp_regular = sp_regular.rename({'frequency':'freq','theta':'dir'})
 
-output_nc_file_name = os.path.join(path_res,'Test_99.nc')
-threshold_prctl = 99
+output_nc_file_name = os.path.join(path_res,'Synth_Spectra_95.nc')
+threshold_prctl = 95
 
 
 sp_regular=sp_regular.transpose("time", "freq", "dir")
@@ -172,7 +171,7 @@ ax0.plot(sp_regular.time.values, sp_regular.efth.spec.hs(), color='firebrick')
 ax0.plot(sp_regular_subset.isel(time=range(ts)).time.values, sp_regular_subset.isel(time=range(ts)).efth.spec.hs(), 'ok')
 ax0.set_ylabel('Hs (m)', fontsize=16)
 ax0.grid()
-ax0.set_xlim(sp_regular.isel(time=range(ts)).time.values[0], sp_regular.isel(time=range(ts)).time.values[-1])
+ax0.set_xlim(sp_regular.time.values[0], sp_regular.time.values[-1])
 
 ax1=fig.add_subplot(gs1[1], sharex=ax0)
 ax1.plot(sp_regular.time.values, sp_regular.efth.spec.tp(), color='royalblue')
@@ -197,7 +196,7 @@ cumulative_variance = np.cumsum(pca_full.explained_variance_ratio_)
 optimal_pca_components = np.argmax(cumulative_variance >= 0.95) + 1
 print(f"Optimal number of PCA components: {optimal_pca_components}")
 
-optimal_pca_components = 40
+#optimal_pca_components = 40
 # Apply PCA with optimal number of components
 pca = PCA(n_components=optimal_pca_components)
 low_dim_data = pca.fit_transform(reshaped_data)  # Shape: (10, optimal_pca_components)
@@ -205,17 +204,18 @@ low_dim_data = pca.fit_transform(reshaped_data)  # Shape: (10, optimal_pca_compo
 # Find the best number of GMM components using BIC
 bic_scores = []
 aic_scores = []
-# component_range = range(1, 50)  # Test 1 to 100 components
+component_range = range(1, 60)  # Test 1 to 100 components
 
-# for n in component_range:
-#     gmm = GaussianMixture(n_components=n, covariance_type='full', random_state=42)
-#     gmm.fit(low_dim_data)
-#     bic_scores.append(gmm.bic(low_dim_data))
-#     aic_scores.append(gmm.aic(low_dim_data))
+for n in component_range:
+    print(n)
+    gmm = GaussianMixture(n_components=n, covariance_type='full', random_state=42)
+    gmm.fit(low_dim_data)
+    bic_scores.append(gmm.bic(low_dim_data))
+    aic_scores.append(gmm.aic(low_dim_data))
 
-# # Select the optimal number of GMM components
-# optimal_gmm_components = component_range[np.argmin(bic_scores)]
-optimal_gmm_components = 45
+# Select the optimal number of GMM components
+optimal_gmm_components = component_range[np.argmin(bic_scores)]
+#optimal_gmm_components = 45
 print(f"Optimal number of GMM components: {optimal_gmm_components}")
 
 # Fit GMM using the optimal number of components
@@ -226,7 +226,7 @@ gmm.fit(low_dim_data)
 synthetic_low_dim = gmm.sample(1)[0]
 
 # Transform back to full 37x36 matrix
-synthetic_sample = pca.inverse_transform(synthetic_low_dim).reshape(50, 37)
+synthetic_sample = pca.inverse_transform(synthetic_low_dim).reshape(38, 36)
 
 # Ensure non-negativity
 synthetic_sample = np.maximum(synthetic_sample, 0)
@@ -235,19 +235,19 @@ synthetic_sample = np.maximum(synthetic_sample, 0)
 synthetic_samples = []
 for _ in range(num_sims):
     synthetic_low_dim = gmm.sample(1)[0]  # Sample from GMM
-    synthetic_matrix = pca.inverse_transform(synthetic_low_dim).reshape(50, 37)
+    synthetic_matrix = pca.inverse_transform(synthetic_low_dim).reshape(38, 36)
     synthetic_matrix = np.maximum(synthetic_matrix, 0)  # Ensure non-negativity
     synthetic_samples.append(synthetic_matrix)
 
-# # Plot BIC scores
-# plt.figure(figsize=(8, 5))
-# plt.plot(component_range, bic_scores, label="BIC Score", marker="o")
-# plt.plot(component_range, aic_scores, label="AIC Score", marker="s")
-# plt.xlabel("Number of GMM Components")
-# plt.ylabel("Score")
-# plt.legend()
-# plt.title("Model Selection for GMM: BIC vs AIC")
-# plt.show()
+# Plot BIC scores
+plt.figure(figsize=(8, 5))
+plt.plot(component_range, bic_scores, label="BIC Score", marker="o")
+plt.plot(component_range, aic_scores, label="AIC Score", marker="s")
+plt.xlabel("Number of GMM Components")
+plt.ylabel("Score")
+plt.legend()
+plt.title("Model Selection for GMM: BIC vs AIC")
+plt.show()
 
 
 
@@ -330,6 +330,36 @@ tp_synth = sp.efth_synth.spec.tp()
 tp_orig = sp.efth.spec.tp()
 dp_synth = sp.efth_synth.spec.dp()
 dp_orig = sp.efth.spec.dp()
+
+
+
+
+fig = plt.figure(figsize=[10,10])
+gs3=gridspec.GridSpec(2,2,hspace=0.1, wspace=0.1)
+ax=fig.add_subplot(gs3[0])
+ax.plot(hs_orig,tp_orig,'.', label='Original Data',color='black',markersize=2)
+ax.plot(sp_regular_subset.isel(time=range(ts)).efth.spec.hs(),sp_regular_subset.isel(time=range(ts)).efth.spec.tp(),'.',label='Extreme Data', color='coral',markersize=1)
+ax.set_ylabel('Tp (s)', fontsize=14)
+ax.set_xlabel('Hs (m)', fontsize=14)
+ax.legend(fontsize=12)
+
+
+ax1=fig.add_subplot(gs3[1])
+ax1.plot(hs_orig,dp_orig,'.', label='Original Data',color='black',markersize=2)
+ax1.plot(sp_regular_subset.isel(time=range(ts)).efth.spec.hs(),sp_regular_subset.isel(time=range(ts)).efth.spec.dp(),'.',label='Extreme Data', color='coral',markersize=1)
+ax1.set_ylabel('Dp (deg)', fontsize=14)
+ax1.set_xlabel('Hs (m)', fontsize=14)
+
+
+ax3=fig.add_subplot(gs3[3])
+ax3.plot(tp_orig,dp_orig,'.', label='Original Data',color='black',markersize=2)
+ax3.plot(sp_regular_subset.isel(time=range(ts)).efth.spec.tp(),sp_regular_subset.isel(time=range(ts)).efth.spec.dp(),'.',label='Extreme Data', color='coral',markersize=1)
+ax3.set_ylabel('Dp (deg)', fontsize=14)
+ax3.set_xlabel('Tp (s)', fontsize=14)
+
+fig.savefig(path_res+'/Parametric_extremes_used_to_train_MC.png')
+plt.close(fig)
+
 
 
 fig = plt.figure(figsize=[10,10])
