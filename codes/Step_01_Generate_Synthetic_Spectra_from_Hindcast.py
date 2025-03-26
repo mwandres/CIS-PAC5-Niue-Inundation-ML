@@ -14,6 +14,8 @@ import scipy.stats as stats
 from sklearn.decomposition import PCA
 import seaborn as sns
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from matplotlib import gridspec
+
 
 def make_plot_and_calc_errors(data1,data2):
     # 1. QQ Plot
@@ -117,14 +119,18 @@ num_sims=100000
 path=r'D:\CISPac-5\CIS-PAC5-Niue-Inundation-ML\extras'
 path_res = r'D:\CISPac-5\CIS-PAC5-Niue-Inundation-ML\extras\processed_data'
 path_data=os.path.join(path, 'training_data')
-sp_regular=xr.open_dataset(os.path.join(path_data, 'SuperPoint.nc'))
-output_nc_file_name = os.path.join(path_res,'Test_95.nc')
-threshold_prctl = 95
+sp_regular=xr.open_dataset(os.path.join(path_data, 'Niue_SuperPoint.nc'))
+sp_regular = sp_regular.rename({'frequency':'freq','theta':'dir'})
+
+output_nc_file_name = os.path.join(path_res,'Test_99.nc')
+threshold_prctl = 99
 
 
 sp_regular=sp_regular.transpose("time", "freq", "dir")
 # sp_regular = sp_regular['efth'][0:ts,:,:].to_dataset()
-sp_regular['efth']=(('time', 'freq', 'dir'),sp_regular.efth.values/(1025*9.81))
+#sp_regular['efth']=(('time', 'freq', 'dir'),sp_regular.efth.values/(1025*9.81))
+sp_regular['efth']=(('time', 'freq', 'dir'),sp_regular.efth.values)
+
 sp_regular['dir']=np.where(sp_regular.dir.values<0, sp_regular.dir.values+360, sp_regular.dir.values)
 sp_regular=sp_regular.sortby('dir')
 sp_regular['efth']
@@ -157,24 +163,24 @@ time_values = sp_regular.time[index_array]
 sp_regular_subset = sp_regular.efth.isel(time=index_array).to_dataset()
 
 
-ts=1500 #plotting times
+ts=len(indices) #plotting times
 fig = plt.figure(figsize=[20,15])
 gs1=gridspec.GridSpec(3,1)
 ax0=fig.add_subplot(gs1[0])
 
-ax0.plot(sp_regular.isel(time=range(ts)).time.values, sp_regular.isel(time=range(ts)).efth.spec.hs(), color='firebrick')
+ax0.plot(sp_regular.time.values, sp_regular.efth.spec.hs(), color='firebrick')
 ax0.plot(sp_regular_subset.isel(time=range(ts)).time.values, sp_regular_subset.isel(time=range(ts)).efth.spec.hs(), 'ok')
 ax0.set_ylabel('Hs (m)', fontsize=16)
 ax0.grid()
 ax0.set_xlim(sp_regular.isel(time=range(ts)).time.values[0], sp_regular.isel(time=range(ts)).time.values[-1])
 
 ax1=fig.add_subplot(gs1[1], sharex=ax0)
-ax1.plot(sp_regular.isel(time=range(ts)).time.values, sp_regular.isel(time=range(ts)).efth.spec.tp(), color='royalblue')
+ax1.plot(sp_regular.time.values, sp_regular.efth.spec.tp(), color='royalblue')
 ax1.set_ylabel('Tp (s)', fontsize=16)
 ax1.grid()
 
 ax2=fig.add_subplot(gs1[2], sharex=ax0)
-ax2.plot(sp_regular.isel(time=range(ts)).time.values, sp_regular.isel(time=range(ts)).efth.spec.dp(),'.',  color='darkgreen')
+ax2.plot(sp_regular.time.values, sp_regular.efth.spec.dp(),'.',  color='darkgreen')
 ax2.set_ylabel('Dir (º)', fontsize=16)
 plt.grid()
 
@@ -191,6 +197,7 @@ cumulative_variance = np.cumsum(pca_full.explained_variance_ratio_)
 optimal_pca_components = np.argmax(cumulative_variance >= 0.95) + 1
 print(f"Optimal number of PCA components: {optimal_pca_components}")
 
+optimal_pca_components = 40
 # Apply PCA with optimal number of components
 pca = PCA(n_components=optimal_pca_components)
 low_dim_data = pca.fit_transform(reshaped_data)  # Shape: (10, optimal_pca_components)
@@ -198,16 +205,17 @@ low_dim_data = pca.fit_transform(reshaped_data)  # Shape: (10, optimal_pca_compo
 # Find the best number of GMM components using BIC
 bic_scores = []
 aic_scores = []
-component_range = range(1, 50)  # Test 1 to 100 components
+# component_range = range(1, 50)  # Test 1 to 100 components
 
-for n in component_range:
-    gmm = GaussianMixture(n_components=n, covariance_type='full', random_state=42)
-    gmm.fit(low_dim_data)
-    bic_scores.append(gmm.bic(low_dim_data))
-    aic_scores.append(gmm.aic(low_dim_data))
+# for n in component_range:
+#     gmm = GaussianMixture(n_components=n, covariance_type='full', random_state=42)
+#     gmm.fit(low_dim_data)
+#     bic_scores.append(gmm.bic(low_dim_data))
+#     aic_scores.append(gmm.aic(low_dim_data))
 
-# Select the optimal number of GMM components
-optimal_gmm_components = component_range[np.argmin(bic_scores)]
+# # Select the optimal number of GMM components
+# optimal_gmm_components = component_range[np.argmin(bic_scores)]
+optimal_gmm_components = 45
 print(f"Optimal number of GMM components: {optimal_gmm_components}")
 
 # Fit GMM using the optimal number of components
@@ -218,7 +226,7 @@ gmm.fit(low_dim_data)
 synthetic_low_dim = gmm.sample(1)[0]
 
 # Transform back to full 37x36 matrix
-synthetic_sample = pca.inverse_transform(synthetic_low_dim).reshape(37, 36)
+synthetic_sample = pca.inverse_transform(synthetic_low_dim).reshape(50, 37)
 
 # Ensure non-negativity
 synthetic_sample = np.maximum(synthetic_sample, 0)
@@ -227,21 +235,76 @@ synthetic_sample = np.maximum(synthetic_sample, 0)
 synthetic_samples = []
 for _ in range(num_sims):
     synthetic_low_dim = gmm.sample(1)[0]  # Sample from GMM
-    synthetic_matrix = pca.inverse_transform(synthetic_low_dim).reshape(37, 36)
+    synthetic_matrix = pca.inverse_transform(synthetic_low_dim).reshape(50, 37)
     synthetic_matrix = np.maximum(synthetic_matrix, 0)  # Ensure non-negativity
     synthetic_samples.append(synthetic_matrix)
 
-# Plot BIC scores
-plt.figure(figsize=(8, 5))
-plt.plot(component_range, bic_scores, label="BIC Score", marker="o")
-plt.plot(component_range, aic_scores, label="AIC Score", marker="s")
-plt.xlabel("Number of GMM Components")
-plt.ylabel("Score")
-plt.legend()
-plt.title("Model Selection for GMM: BIC vs AIC")
-plt.show()
+# # Plot BIC scores
+# plt.figure(figsize=(8, 5))
+# plt.plot(component_range, bic_scores, label="BIC Score", marker="o")
+# plt.plot(component_range, aic_scores, label="AIC Score", marker="s")
+# plt.xlabel("Number of GMM Components")
+# plt.ylabel("Score")
+# plt.legend()
+# plt.title("Model Selection for GMM: BIC vs AIC")
+# plt.show()
+
+
+
+efth_max = sp['efth'].max().values.item()
 
 # Plot original and synthetic clusters
+fig = plt.figure(figsize=[15,10])
+gs3=gridspec.GridSpec(5,5,hspace=0.01, wspace=0.01)
+for b in range(25):
+    
+    ax=fig.add_subplot(gs3[b],projection='polar')
+    ix = np.random.randint(0,len(sp_regular.time.values))
+    
+    sp.isel(time=ix).spec.plot(
+        col="",
+        row="",
+        add_colorbar=False,
+        show_theta_labels=False,
+        show_radii_labels=True,
+        as_period=True,
+        normalised=False,
+        cmap="Spectral_r",
+        levels=np.logspace(np.log10(0.005), np.log(efth_max), 128,endpoint=True),
+        cbar_ticks=[0.005,0.01, 0.1, efth_max],
+        title=False
+    )
+fig.savefig(path_res+'/Historic_sample_spec.png')
+plt.close(fig)
+
+sp_synth = xr.Dataset()
+sp_synth['efth'] = (('clusters', 'freq', 'dir'),synthetic_samples)
+sp_synth.assign_coords({'freq':sp.freq,'dir':sp.dir})
+
+fig = plt.figure(figsize=[15,10])
+gs3=gridspec.GridSpec(10,10,hspace=0.01, wspace=0.01)
+for b in range(100):
+    
+    ax=fig.add_subplot(gs3[b],projection='polar')
+    ix = np.random.randint(0,len(sp_synth.clusters.values))
+    
+    sp_synth.isel(clusters=ix).assign_coords({'freq':sp.freq,'dir':sp.dir}).spec.plot(
+        add_colorbar=False,
+        show_theta_labels=False,
+        show_radii_labels=True,
+        as_period=True,
+        normalised=False,
+        cmap="Spectral_r",
+        levels=np.logspace(np.log10(0.005), np.log(efth_max), 128,endpoint=True),
+        cbar_ticks=[0.005,0.01, 0.1, efth_max],
+        title=False
+    )
+fig.savefig(path_res+'/Synth_sample_spec.png')
+plt.close(fig)
+
+
+
+
 fig, axes = plt.subplots(3, 4, figsize=(15, 10))
 for i in range(10):
     ix = np.random.randint(0,ts)
@@ -278,6 +341,8 @@ ax.set_ylabel('Tp (s)', fontsize=14)
 ax.set_xlabel('Hs (m)', fontsize=14)
 ax.legend(fontsize=12)
 
+
+
 ax1=fig.add_subplot(gs3[1])
 ax1.plot(hs_orig,dp_orig,'.', label='Original Data',color='black',markersize=2)
 ax1.plot(hs_synth,dp_synth,'.',label='Synthetic Data', color='coral',markersize=1)
@@ -291,6 +356,8 @@ ax3.plot(tp_synth,dp_synth,'.',label='Synthetic Data', color='coral',markersize=
 ax3.set_ylabel('Dp (deg)', fontsize=14)
 ax3.set_xlabel('Tp (s)', fontsize=14)
 
+fig.savefig(path_res+'/Parametric_results_from_MC.png')
+plt.close(fig)
 
 
 
